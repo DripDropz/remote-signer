@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.firehose.grpc";
+
+package remotesigner;
+
+// The service definition.
+service RemoteSigner {
+  // Sends and receives signing messages
+  rpc ConnectToServer (stream ClientMessage) returns (stream ServerMessage) {}
+}
+
+// The request message
+message ClientMessage {
+  oneof client_message_wrapper {
+    HandshakeMessage handshake = 1;
+    SignatureMessage signature = 2;
+    PingMessage pong = 3;
+  }
+}
+
+message HandshakeMessage {
+  // Tell the server what address we can sign for.
+  string address = 1;
+  // The vkey of the address so the server can verify our challenge_signature and match our address.
+  bytes vkey = 2;
+  // Server must sign this challenge with its master key
+  // so client can confirm they are talking to the correct server. Randomized, but must start with
+  // remotesigner_ to prevent inadvertent signing of transactions during the handshake phase.
+  string challenge = 3;
+  // Hash and sign the challenge so the server can verify that we are the true owner of this key
+  bytes challenge_signature = 4;
+}
+
+message SignatureMessage {
+  string request_id = 1;
+  bytes signature = 2;
+}
+
+message PingMessage {
+  string message = 1;
+}
+
+// The response message
+message ServerMessage {
+  oneof server_message_wrapper {
+    HandshakeReplyMessage handshake_reply = 1;
+    TransactionMessage transaction = 2;
+    PingMessage ping = 3;
+  }
+}
+
+message HandshakeReplyMessage {
+  Status status = 1;
+  // Client should verify this challenge signature against the server's pre-shared
+  // public key. This confirms there is no man-in-the-middle attack present.
+  bytes challenge_signature = 2;
+}
+
+enum Status {
+  OK = 0;
+  FAILURE = 1;
+}
+
+message TransactionMessage {
+  string request_id = 1;
+  bytes cbor = 2;
+}
